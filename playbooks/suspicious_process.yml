@@ -1,0 +1,41 @@
+name: suspicious_process
+version: 1
+severity: medium
+mttc_target_seconds: 5
+
+description: |
+  Responds to EDR alerts flagging an unknown binary running from a suspicious
+  location (typically %TEMP%). Kills the process, quarantines the on-disk
+  artifact, and notifies the SOC channel.
+
+trigger:
+  type: edr_alert
+  signal: unknown_binary_execution
+
+actions:
+  - id: kill_process
+    type: edr.kill_process
+    params:
+      host: "{{ alert.host }}"
+      process_id: "{{ alert.process_id }}"
+      reason: "unknown binary flagged by EDR: {{ alert.process_name }}"
+    on_failure: abort
+
+  - id: quarantine_file
+    type: edr.quarantine_file
+    params:
+      host: "{{ alert.host }}"
+      file_hash: "{{ alert.file_hash }}"
+      reason: "on-disk artifact from killed process {{ alert.process_name }}"
+    on_failure: continue
+
+  - id: notify_soc
+    type: notifier.send
+    params:
+      channel: "#soc-alerts"
+      severity: medium
+      message: |
+        Suspicious process contained on {{ alert.host }}
+        - Process: {{ alert.process_name }} (pid {{ alert.process_id }}) -- killed
+        - File hash: {{ alert.file_hash }} -- quarantined
+        - Playbook: {{ playbook.name }} v{{ playbook.version }}

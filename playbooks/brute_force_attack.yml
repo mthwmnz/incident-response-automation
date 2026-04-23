@@ -1,0 +1,54 @@
+name: brute_force_attack
+version: 1
+severity: high
+mttc_target_seconds: 10
+
+description: |
+  Responds to brute force authentication attacks by blocking the source IP at
+  the perimeter firewall, locking the targeted account in the directory, and
+  forcing credential rotation. Designed to fully contain the attack before an
+  analyst is paged.
+
+trigger:
+  type: threshold
+  signal: failed_login
+  threshold: 50
+  window_seconds: 300
+  group_by: [source_ip, target_user]
+
+actions:
+  - id: block_source_ip
+    type: firewall.block_ip
+    params:
+      ip: "{{ alert.source_ip }}"
+      reason: "brute force: {{ alert.event_count }} failed logins in {{ alert.window_seconds }}s against {{ alert.target_user }}"
+    timeout_seconds: 5
+    on_failure: continue
+
+  - id: lock_user_account
+    type: directory.disable_user
+    params:
+      username: "{{ alert.target_user }}"
+      reason: "automated lock after suspected brute force from {{ alert.source_ip }}"
+    timeout_seconds: 5
+    on_failure: continue
+
+  - id: force_password_reset
+    type: directory.force_password_reset
+    params:
+      username: "{{ alert.target_user }}"
+    timeout_seconds: 5
+    on_failure: continue
+
+  - id: notify_soc_channel
+    type: notifier.send
+    params:
+      channel: "#soc-alerts"
+      severity: high
+      message: |
+        Brute force attack auto-contained
+        - Source IP: {{ alert.source_ip }} (blocked at firewall)
+        - Target user: {{ alert.target_user }} (locked, password reset forced)
+        - Failed attempts: {{ alert.event_count }} in {{ alert.window_seconds }}s
+        - Playbook: {{ playbook.name }} v{{ playbook.version }}
+    on_failure: continue

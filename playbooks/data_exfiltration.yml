@@ -1,0 +1,55 @@
+name: data_exfiltration
+version: 1
+severity: critical
+mttc_target_seconds: 30
+
+description: |
+  Responds to large outbound data transfers to unknown external IPs. Host
+  isolation is gated behind an analyst approval because of the business impact
+  -- while we wait, we still block the destination IP and page the IR team so
+  containment happens in parallel with the approval decision.
+
+trigger:
+  type: netflow_anomaly
+  signal: large_outbound_transfer
+
+actions:
+  - id: block_destination_ip
+    type: firewall.block_ip
+    params:
+      ip: "{{ alert.destination_ip }}"
+      reason: "suspected exfiltration target from host {{ alert.host }}"
+    on_failure: continue
+
+  - id: page_ir_team
+    type: notifier.send
+    params:
+      channel: "#ir-oncall"
+      severity: critical
+      message: |
+        [PAGE] Possible exfiltration from {{ alert.host }}
+        - Destination: {{ alert.destination_ip }} (blocked globally)
+        - Volume: {{ alert.bytes_transferred }} bytes
+        - Host isolation pending analyst approval
+    on_failure: continue
+
+  - id: isolate_host
+    type: edr.isolate_host
+    requires_approval: true
+    approval:
+      timeout_seconds: 300
+      escalate_to: "#ir-oncall"
+    params:
+      host: "{{ alert.host }}"
+      reason: "approved response to suspected exfiltration to {{ alert.destination_ip }}"
+    on_failure: abort
+
+  - id: notify_containment
+    type: notifier.send
+    params:
+      channel: "#ir-oncall"
+      severity: critical
+      message: |
+        Host {{ alert.host }} isolated after approval.
+        - Destination IP {{ alert.destination_ip }} blocked
+        - Awaiting forensics collection (manual step)
