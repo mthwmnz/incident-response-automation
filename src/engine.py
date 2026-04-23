@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .actions import get_handler
 from .approvals import ApprovalProvider, auto_approve
@@ -18,6 +18,10 @@ from .audit import AuditLog
 from .clients.base import Clients
 from .playbook import Action, Playbook
 from .templating import render
+
+
+ActionStartHook = Callable[[Action, dict[str, Any]], None]
+ActionEndHook = Callable[["ActionOutcome"], None]
 
 
 @dataclass
@@ -52,10 +56,14 @@ class PlaybookEngine:
         clients: Clients,
         audit: AuditLog,
         approval_provider: ApprovalProvider = auto_approve,
+        on_action_start: ActionStartHook | None = None,
+        on_action_end: ActionEndHook | None = None,
     ) -> None:
         self.clients = clients
         self.audit = audit
         self.approval_provider = approval_provider
+        self.on_action_start = on_action_start
+        self.on_action_end = on_action_end
 
     def execute(self, playbook: Playbook, alert: dict[str, Any]) -> ExecutionResult:
         incident_id = alert.get("incident_id") or str(uuid.uuid4())
@@ -88,7 +96,20 @@ class PlaybookEngine:
         playbook: Playbook,
     ) -> ActionOutcome:
         rendered_params = render(action.params, scopes)
+        if self.on_action_start is not None:
+            self.on_action_start(action, rendered_params)
+        outcome = self._dispatch(action, rendered_params, incident_id, playbook)
+        if self.on_action_end is not None:
+            self.on_action_end(outcome)
+        return outcome
 
+    def _dispatch(
+        self,
+        action: Action,
+        rendered_params: dict[str, Any],
+        incident_id: str,
+        playbook: Playbook,
+    ) -> ActionOutcome:
         if action.requires_approval:
             decision = self.approval_provider(
                 action.id,
