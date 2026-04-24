@@ -1,0 +1,32 @@
+services:
+  ir-engine:
+    build: .
+    image: incident-response-automation:latest
+    container_name: ir-engine
+    ports:
+      - "8000:8000"
+    environment:
+      # Optional: set these in your shell or in a .env file to enable real
+      # vendor integrations. Empty values mean "use the mock client" -- the
+      # service is fully functional without any of these.
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - FALCON_CLIENT_ID=${FALCON_CLIENT_ID:-}
+      - FALCON_CLIENT_SECRET=${FALCON_CLIENT_SECRET:-}
+      - FALCON_BASE_URL=${FALCON_BASE_URL:-}
+    volumes:
+      # Audit log + pending approvals persist here across container restarts.
+      - ir-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import httpx; httpx.get('http://127.0.0.1:8000/').raise_for_status()"
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+volumes:
+  ir-data:

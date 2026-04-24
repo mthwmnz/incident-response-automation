@@ -15,6 +15,7 @@ Interactive API docs at http://127.0.0.1:8000/docs
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -25,11 +26,15 @@ import uvicorn
 from src.api import create_app
 
 
-AUDIT_DB = Path(__file__).parent / "audit.db"
+# Override-able for containerized deployments where audit.db lives on a
+# mounted volume (e.g. /app/data/audit.db).
+AUDIT_DB = Path(
+    os.environ.get("AUDIT_DB_PATH") or (Path(__file__).parent / "audit.db")
+)
+AUDIT_DB.parent.mkdir(parents=True, exist_ok=True)
 
 
 if __name__ == "__main__":
-    import os
     print(f"Audit log: {AUDIT_DB} (persisted across restarts)")
     if os.environ.get("SLACK_WEBHOOK_URL", "").strip():
         print("Notifier:  SlackWebhook (real -- SLACK_WEBHOOK_URL is set)")
@@ -44,5 +49,7 @@ if __name__ == "__main__":
             "EDR:       MockCrowdStrike "
             "(set FALCON_CLIENT_ID + FALCON_CLIENT_SECRET to use real Falcon)"
         )
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8000"))
     app = create_app(audit_db=str(AUDIT_DB))
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(app, host=host, port=port, log_level="info")

@@ -20,12 +20,21 @@ Automated SOC playbook engine. Ingests alerts, runs YAML-defined response playbo
 
 ## Quick start
 
+### Option A: Docker (one command, no Python setup)
+
 ```bash
-pip install -e .
-python demo.py
+docker compose up
 ```
 
-The demo loads the brute force playbook and simulates 53 failed logins from `185.220.101.42` against `jsmith`. You'll see each action dispatched, each mock API call, and the final audit log.
+The service is available at <http://127.0.0.1:8000> — Swagger UI at `/docs`. Audit log persists across restarts in a named docker volume (`ir-data`). To enable real Slack / CrowdStrike, copy `.env.example` to `.env`, fill in credentials, and `docker compose up --build`.
+
+### Option B: Python directly
+
+```bash
+pip install -e .
+python demo.py    # CLI demo of the brute force playbook
+python serve.py   # HTTP service on http://127.0.0.1:8000
+```
 
 Run the tests:
 
@@ -195,8 +204,8 @@ Real CrowdStrike Falcon / Palo Alto PAN-OS / AD integrations go in Phase 2 once 
 ## Roadmap
 
 - **Phase 1 (done):** single-process engine, YAML playbooks, mock clients, SQLite audit, CLI demo
-- **Phase 2 (in progress):** ~~FastAPI service with SIEM webhook target~~, ~~real Slack notifications~~, ~~webhook approval flow with persistent pending state~~, ~~real CrowdStrike Falcon integration (OAuth2, isolate / RTR-kill / IOC-block)~~, PostgreSQL audit
-- **Phase 3:** Celery task queue, Prometheus metrics, Docker Compose, retry/backoff policies
+- **Phase 2 (in progress):** ~~FastAPI service with SIEM webhook target~~, ~~real Slack notifications~~, ~~webhook approval flow with persistent pending state~~, ~~real CrowdStrike Falcon integration (OAuth2, isolate / RTR-kill / IOC-block)~~, ~~Docker Compose for one-command deploy~~, PostgreSQL audit
+- **Phase 3:** Celery task queue, Prometheus metrics, retry/backoff policies, Splunk/ELK alert ingestion sidecar
 
 ## Project structure
 
