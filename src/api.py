@@ -34,7 +34,7 @@ from .approvals import (
 from .audit import AuditLog
 from .clients.base import Clients
 from .clients.directory import MockActiveDirectory
-from .clients.edr import MockCrowdStrike
+from .clients.edr import build_edr
 from .clients.firewall import MockPaloAlto
 from .clients.notifier import build_notifier
 from .engine import ExecutionResult, PlaybookEngine
@@ -126,7 +126,7 @@ def create_app(
     if clients is None:
         clients = Clients(
             firewall=MockPaloAlto(),
-            edr=MockCrowdStrike(),
+            edr=build_edr(),
             directory=MockActiveDirectory(),
             notifier=build_notifier(),
         )

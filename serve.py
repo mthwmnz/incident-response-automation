@@ -35,5 +35,14 @@ if __name__ == "__main__":
         print("Notifier:  SlackWebhook (real -- SLACK_WEBHOOK_URL is set)")
     else:
         print("Notifier:  MockSlack (set SLACK_WEBHOOK_URL to use real Slack)")
+    if os.environ.get("FALCON_CLIENT_ID", "").strip() and os.environ.get(
+        "FALCON_CLIENT_SECRET", ""
+    ).strip():
+        print("EDR:       FalconCrowdStrike (real -- FALCON_CLIENT_ID/SECRET set)")
+    else:
+        print(
+            "EDR:       MockCrowdStrike "
+            "(set FALCON_CLIENT_ID + FALCON_CLIENT_SECRET to use real Falcon)"
+        )
     app = create_app(audit_db=str(AUDIT_DB))
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")

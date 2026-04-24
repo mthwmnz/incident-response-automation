@@ -34,6 +34,37 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Real CrowdStrike Falcon EDR
+
+By default the EDR client is a mock that records intent in memory. To make EDR actions hit real Falcon, set the API credentials before launching:
+
+```bash
+# bash / git-bash
+export FALCON_CLIENT_ID="..."
+export FALCON_CLIENT_SECRET="..."
+export FALCON_BASE_URL="https://api.crowdstrike.com"   # optional; us-1 default
+python serve.py
+
+# PowerShell
+$env:FALCON_CLIENT_ID = "..."
+$env:FALCON_CLIENT_SECRET = "..."
+python serve.py
+```
+
+To get credentials: <https://falcon.crowdstrike.com> → Support and resources → API clients and keys → Create API client. Grant scopes for **Hosts (read+write)**, **Real Time Response (write)**, and **Custom IOCs (write)**.
+
+Region base URLs: `https://api.crowdstrike.com` (us-1, default), `https://api.us-2.crowdstrike.com`, `https://api.eu-1.crowdstrike.com`, `https://api.laggar.gcw.crowdstrike.com` (gov).
+
+The [FalconCrowdStrike](src/clients/edr.py) client implements:
+
+| Engine action | Falcon API | Notes |
+|---|---|---|
+| `isolate_host` | `POST /devices/entities/devices-actions/v2?action_name=contain` | Network containment |
+| `kill_process` | RTR session init → `POST /real-time-response/entities/admin-command/v1` (`kill <pid>`) | Two-step; result polling not implemented |
+| `quarantine_file` | `POST /iocs/entities/indicators/v1` | Adds SHA256 as global preventive IOC. Falcon doesn't expose per-host quarantine cleanly, so this blocks the hash on every managed host instead -- closer real-world action. |
+
+OAuth tokens are cached for ~30 minutes and refreshed automatically. The `host` field in playbook actions must be a Falcon `device_id` (AID), not a hostname, when running against real Falcon.
+
 ## Real Slack notifications
 
 By default the engine prints Slack messages to stdout (mock mode). To send to a real Slack channel, set `SLACK_WEBHOOK_URL` before launching:
@@ -164,7 +195,7 @@ Real CrowdStrike Falcon / Palo Alto PAN-OS / AD integrations go in Phase 2 once 
 ## Roadmap
 
 - **Phase 1 (done):** single-process engine, YAML playbooks, mock clients, SQLite audit, CLI demo
-- **Phase 2 (in progress):** ~~FastAPI service with SIEM webhook target~~, ~~real Slack notifications~~, ~~webhook approval flow with persistent pending state~~, real vendor SDK calls (CrowdStrike Falcon next), PostgreSQL audit
+- **Phase 2 (in progress):** ~~FastAPI service with SIEM webhook target~~, ~~real Slack notifications~~, ~~webhook approval flow with persistent pending state~~, ~~real CrowdStrike Falcon integration (OAuth2, isolate / RTR-kill / IOC-block)~~, PostgreSQL audit
 - **Phase 3:** Celery task queue, Prometheus metrics, Docker Compose, retry/backoff policies
 
 ## Project structure

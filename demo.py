@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from src.audit import AuditLog
 from src.clients.base import Clients
 from src.clients.directory import MockActiveDirectory
-from src.clients.edr import MockCrowdStrike
+from src.clients.edr import build_edr
 from src.clients.firewall import MockPaloAlto
 from src.clients.notifier import build_notifier
 from src.engine import ActionOutcome, PlaybookEngine
@@ -57,13 +57,14 @@ def main() -> None:
     pause(SECTION_PAUSE)
 
     firewall = MockPaloAlto()
-    edr = MockCrowdStrike()
+    edr = build_edr()
     directory = MockActiveDirectory()
     slack = build_notifier()
     clients = Clients(
         firewall=firewall, edr=edr, directory=directory, notifier=slack
     )
     print(f"\nNotifier: {type(slack).__name__}")
+    print(f"EDR:      {type(edr).__name__}")
     audit = AuditLog(":memory:")
 
     counter = {"i": 0, "n": len(playbook.actions)}
