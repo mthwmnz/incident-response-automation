@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -41,21 +42,24 @@ CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp);
 class AuditLog:
     def __init__(self, db_path: Path | str = ":memory:") -> None:
         self.db_path = str(db_path)
-        # A persistent connection is required for :memory: so the schema
-        # survives across record() calls.
-        self._conn = sqlite3.connect(self.db_path)
+        # check_same_thread=False is required because FastAPI / uvicorn
+        # dispatches request handlers from a thread pool. The lock below
+        # serialises writes to keep that safe.
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
         self._conn.commit()
+        self._lock = threading.Lock()
 
     @contextmanager
     def _cursor(self) -> Iterator[sqlite3.Cursor]:
-        cursor = self._conn.cursor()
-        try:
-            yield cursor
-            self._conn.commit()
-        finally:
-            cursor.close()
+        with self._lock:
+            cursor = self._conn.cursor()
+            try:
+                yield cursor
+                self._conn.commit()
+            finally:
+                cursor.close()
 
     def record(
         self,

@@ -25,7 +25,7 @@ pip install -e .
 python demo.py
 ```
 
-The demo loads the brute force playbook and simulates 50 failed logins from `185.220.101.42` against `jsmith`. You'll see each action dispatched, each mock API call, and the final audit log.
+The demo loads the brute force playbook and simulates 53 failed logins from `185.220.101.42` against `jsmith`. You'll see each action dispatched, each mock API call, and the final audit log.
 
 Run the tests:
 
@@ -33,6 +33,39 @@ Run the tests:
 pip install -e ".[dev]"
 pytest
 ```
+
+## Running as an HTTP service
+
+The engine also runs as a FastAPI service so SIEMs (Splunk, ELK, CrowdStrike) can POST alerts and trigger playbooks via webhook:
+
+```bash
+python serve.py
+```
+
+Then in another terminal:
+
+```bash
+# list loaded playbooks
+curl http://127.0.0.1:8000/playbooks
+
+# trigger the brute force playbook
+curl -X POST http://127.0.0.1:8000/alerts/brute_force_attack \
+    -H "Content-Type: application/json" \
+    -d '{"incident_id":"INC-001","source_ip":"1.2.3.4","target_user":"jsmith","event_count":75,"window_seconds":300}'
+
+# read the audit trail for an incident
+curl http://127.0.0.1:8000/incidents/INC-001/audit
+```
+
+Interactive Swagger / OpenAPI docs auto-generated at <http://127.0.0.1:8000/docs>.
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/` | GET | Service health + endpoint index |
+| `/playbooks` | GET | List loaded playbooks with metadata |
+| `/playbooks/{name}` | GET | Get a single playbook definition |
+| `/alerts/{playbook_name}` | POST | Trigger a playbook with an alert payload |
+| `/incidents/{id}/audit` | GET | Audit trail for one incident |
 
 ## Architecture
 
@@ -73,8 +106,8 @@ Real CrowdStrike Falcon / Palo Alto PAN-OS / AD integrations go in Phase 2 once 
 
 ## Roadmap
 
-- **Phase 1 (this):** single-process engine, YAML playbooks, mock clients, SQLite audit, CLI demo
-- **Phase 2:** SIEM ingestion (Splunk/ELK), real vendor SDK calls, PostgreSQL audit, webhook approval UI
+- **Phase 1 (done):** single-process engine, YAML playbooks, mock clients, SQLite audit, CLI demo
+- **Phase 2 (in progress):** ~~FastAPI service with SIEM webhook target~~, real vendor SDK calls, PostgreSQL audit, webhook approval UI
 - **Phase 3:** Celery task queue, Prometheus metrics, Docker Compose, retry/backoff policies
 
 ## Project structure
@@ -89,6 +122,7 @@ incident-response-automation/
     audit.py               # SQLite audit log
     approvals.py           # manual approval gates
     templating.py          # safe parameter substitution
+    api.py                 # FastAPI HTTP service
     clients/
       base.py              # Protocol interfaces
       firewall.py          # Palo Alto (mock)
@@ -96,5 +130,6 @@ incident-response-automation/
       directory.py         # Active Directory (mock)
       notifier.py          # Slack (mock)
   tests/
-  demo.py
+  demo.py                  # CLI demo
+  serve.py                 # HTTP service entrypoint
 ```
