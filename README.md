@@ -84,6 +84,45 @@ Interactive Swagger / OpenAPI docs auto-generated at <http://127.0.0.1:8000/docs
 | `/playbooks/{name}` | GET | Get a single playbook definition |
 | `/alerts/{playbook_name}` | POST | Trigger a playbook with an alert payload |
 | `/incidents/{id}/audit` | GET | Audit trail for one incident |
+| `/approvals` | GET | List pending approvals |
+| `/approvals/{token}` | GET | Get a single pending approval |
+| `/approvals/{token}` | POST | Decide on a pending approval (approve / deny) |
+
+## Approval workflow for high-risk actions
+
+Playbook actions can declare `requires_approval: true` (see [data_exfiltration.yml](playbooks/data_exfiltration.yml) for the canonical example). When the engine reaches such an action, it:
+
+1. Records a `pending_approval` event in the audit log
+2. Persists the suspended state in the `pending_approvals` table (survives restarts)
+3. Sends a Slack notification to the action's `escalate_to` channel with the approval URL embedded
+4. Returns immediately to the caller with `status: "suspended_pending_approval"` and a token
+
+An analyst then approves (or denies) by POSTing to the callback URL:
+
+```bash
+# Trigger the playbook -- get back a token
+curl -X POST http://127.0.0.1:8000/alerts/data_exfiltration \
+    -H "Content-Type: application/json" \
+    -d '{"incident_id":"INC-EXFIL-1","host":"WIN-FIN-03","destination_ip":"203.0.113.42","bytes_transferred":2400000000}'
+
+# Response includes a token + approval_url:
+# { "status":"suspended_pending_approval", "pending_approval_token":"abc-123-...",
+#   "approval_url":"http://127.0.0.1:8000/approvals/abc-123-..." }
+
+# Approve -- engine resumes, runs the gated action, runs any actions after it
+curl -X POST http://127.0.0.1:8000/approvals/abc-123-... \
+    -H "Content-Type: application/json" \
+    -d '{"approved":true,"approver":"@alice","reason":"verified incident"}'
+
+# Or deny -- engine aborts the playbook
+curl -X POST http://127.0.0.1:8000/approvals/abc-123-... \
+    -H "Content-Type: application/json" \
+    -d '{"approved":false,"approver":"@alice","reason":"false positive"}'
+```
+
+The audit trail captures the full lifecycle: `pending_approval` -> `success` (or `denied`), with the approver's name and reason recorded as the `actor` of the resolving event. Pending approvals are queryable any time via `GET /approvals`.
+
+This design is the production shape of approval-gated automation -- a Slack-buttons UI is a thin wrapper on top (the button click POSTs to the same endpoint).
 
 ## Architecture
 
@@ -125,7 +164,7 @@ Real CrowdStrike Falcon / Palo Alto PAN-OS / AD integrations go in Phase 2 once 
 ## Roadmap
 
 - **Phase 1 (done):** single-process engine, YAML playbooks, mock clients, SQLite audit, CLI demo
-- **Phase 2 (in progress):** ~~FastAPI service with SIEM webhook target~~, real vendor SDK calls, PostgreSQL audit, webhook approval UI
+- **Phase 2 (in progress):** ~~FastAPI service with SIEM webhook target~~, ~~real Slack notifications~~, ~~webhook approval flow with persistent pending state~~, real vendor SDK calls (CrowdStrike Falcon next), PostgreSQL audit
 - **Phase 3:** Celery task queue, Prometheus metrics, Docker Compose, retry/backoff policies
 
 ## Project structure

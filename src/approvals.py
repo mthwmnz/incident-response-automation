@@ -1,11 +1,14 @@
 """Approval gates for high-risk actions.
 
-Phase 1 ships three providers:
-- `auto_approve` -- used in tests and non-interactive runs
-- `auto_deny`    -- used in tests to prove the abort path works
-- `cli_prompt`   -- used in interactive demos
+Synchronous providers (return an `ApprovalDecision` immediately):
+- `auto_approve`         -- used in tests and non-interactive runs
+- `auto_deny`            -- used in tests to prove the abort path works
+- `cli_prompt`           -- used in interactive demos
 
-A webhook/UI-backed provider is a drop-in replacement for Phase 2.
+Asynchronous provider (raises `ApprovalRequired` to suspend execution):
+- `webhook_approval_required` -- the engine catches the exception and returns
+  a suspended ExecutionResult so the caller (typically an HTTP API) can
+  persist pending state and resume later via `engine.resume()`.
 """
 from __future__ import annotations
 
@@ -46,3 +49,27 @@ def cli_prompt(action_id: str, context: dict[str, Any]) -> ApprovalDecision:
         approver="cli_user",
         reason="approved via CLI" if approved else "denied via CLI",
     )
+
+
+class ApprovalRequired(Exception):
+    """Raised by an approval provider to signal that the decision must be made
+    out-of-band. The engine catches this, suspends execution, and returns an
+    ExecutionResult with status='suspended_pending_approval'.
+    """
+
+    def __init__(self, escalate_to: str | None = None) -> None:
+        super().__init__(
+            f"approval required (escalate_to={escalate_to!r})"
+        )
+        self.escalate_to = escalate_to
+
+
+def webhook_approval_required(
+    action_id: str, context: dict[str, Any]
+) -> ApprovalDecision:
+    """Approval provider that always defers to out-of-band approval.
+
+    Use with the HTTP service: hitting an action with `requires_approval: true`
+    suspends the playbook. The decision arrives later via POST /approvals/{token}.
+    """
+    raise ApprovalRequired(escalate_to=context.get("escalate_to"))
