@@ -22,8 +22,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import uvicorn
 
-from src.api import app
+from src.api import create_app
+
+
+AUDIT_DB = Path(__file__).parent / "audit.db"
 
 
 if __name__ == "__main__":
+    print(f"Audit log: {AUDIT_DB} (persisted across restarts)")
+    app = create_app(audit_db=str(AUDIT_DB))
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
