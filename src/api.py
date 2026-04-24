@@ -22,7 +22,7 @@ from .clients.base import Clients
 from .clients.directory import MockActiveDirectory
 from .clients.edr import MockCrowdStrike
 from .clients.firewall import MockPaloAlto
-from .clients.notifier import MockSlack
+from .clients.notifier import build_notifier
 from .engine import PlaybookEngine
 from .playbook import Playbook, load_playbooks
 
@@ -75,7 +75,7 @@ def create_app(
             firewall=MockPaloAlto(),
             edr=MockCrowdStrike(),
             directory=MockActiveDirectory(),
-            notifier=MockSlack(),
+            notifier=build_notifier(),
         )
     engine = PlaybookEngine(clients=clients, audit=audit)
 

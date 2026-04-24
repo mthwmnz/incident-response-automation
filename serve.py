@@ -29,6 +29,11 @@ AUDIT_DB = Path(__file__).parent / "audit.db"
 
 
 if __name__ == "__main__":
+    import os
     print(f"Audit log: {AUDIT_DB} (persisted across restarts)")
+    if os.environ.get("SLACK_WEBHOOK_URL", "").strip():
+        print("Notifier:  SlackWebhook (real -- SLACK_WEBHOOK_URL is set)")
+    else:
+        print("Notifier:  MockSlack (set SLACK_WEBHOOK_URL to use real Slack)")
     app = create_app(audit_db=str(AUDIT_DB))
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")

@@ -34,6 +34,24 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Real Slack notifications
+
+By default the engine prints Slack messages to stdout (mock mode). To send to a real Slack channel, set `SLACK_WEBHOOK_URL` before launching:
+
+```bash
+# bash / git-bash
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T0XXX/B0XXX/XXXX"
+python serve.py
+
+# PowerShell
+$env:SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/T0XXX/B0XXX/XXXX"
+python serve.py
+```
+
+To create a webhook URL: <https://api.slack.com/messaging/webhooks> → "Create New App" → enable Incoming Webhooks → "Add New Webhook to Workspace" → pick a channel → copy the URL.
+
+The engine logs which notifier it's using at startup. No code changes are required to switch between mock and real -- the [build_notifier()](src/clients/notifier.py) factory checks the env var.
+
 ## Running as an HTTP service
 
 The engine also runs as a FastAPI service so SIEMs (Splunk, ELK, CrowdStrike) can POST alerts and trigger playbooks via webhook:

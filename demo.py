@@ -20,7 +20,7 @@ from src.clients.base import Clients
 from src.clients.directory import MockActiveDirectory
 from src.clients.edr import MockCrowdStrike
 from src.clients.firewall import MockPaloAlto
-from src.clients.notifier import MockSlack
+from src.clients.notifier import build_notifier
 from src.engine import ActionOutcome, PlaybookEngine
 from src.playbook import Action, load_playbook
 
@@ -59,10 +59,11 @@ def main() -> None:
     firewall = MockPaloAlto()
     edr = MockCrowdStrike()
     directory = MockActiveDirectory()
-    slack = MockSlack()
+    slack = build_notifier()
     clients = Clients(
         firewall=firewall, edr=edr, directory=directory, notifier=slack
     )
+    print(f"\nNotifier: {type(slack).__name__}")
     audit = AuditLog(":memory:")
 
     counter = {"i": 0, "n": len(playbook.actions)}
